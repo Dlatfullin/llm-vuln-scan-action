@@ -1,4 +1,3 @@
-# action.yml в репо Dlatfullin/llm-vuln-scan-action
 name: "LLM Vulnerability Scan"
 description: "Scans the entire diff of any files via an external service and fails the build if vulnerabilities are found"
 inputs:
@@ -47,7 +46,7 @@ runs:
         echo "${{ steps.diff.outputs.patch }}" > diff.patch
 
         curl --fail -sS \
-          -X POST "${SERVICE_URL}/api/v1/code-advice" \
+          -X POST "${SERVICE_URL}" \
           -H "Accept: text/plain" \
           -H "Content-Type: text/plain" \
           --data-binary @diff.patch > scan.txt
