@@ -1,0 +1,61 @@
+name: "LLM Vulnerability Scan"
+description: "Scans the entire diff of any files via an external service and fails the build if vulnerabilities are found"
+inputs:
+  code_advice_url:
+    description: "Base URL of your scanning service"
+    required: true
+  file_globs:
+    description: "Glob patterns for files to include in the diff (defaults to all files)"
+    required: false
+    default: "**/*"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Fetch diff of changed files
+      id: diff
+      shell: bash
+      run: |
+        BASE=${{ github.event.pull_request.base.ref }}
+        git fetch origin "$BASE"
+        # split file_globs into an array (separator=',')
+        IFS=',' read -r -a GLOBS <<< "${{ inputs.file_globs }}"
+        # get diff for all files matching GLOBS
+        DIFF=$(git diff --unified=0 origin/"$BASE" -- "${GLOBS[@]}")
+        if [[ -z "$DIFF" ]]; then
+          echo "skip<<EOF" >> $GITHUB_OUTPUT
+          echo "true"       >> $GITHUB_OUTPUT
+          echo "EOF"        >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        echo "patch<<EOF" >> $GITHUB_OUTPUT
+        echo "$DIFF"     >> $GITHUB_OUTPUT
+        echo "EOF"        >> $GITHUB_OUTPUT
+
+    - name: Send diff to external service and fail on issues
+      if: steps.diff.outputs.skip != 'true'
+      shell: bash
+      env:
+        SERVICE_URL: ${{ inputs.code_advice_url }}
+      run: |
+        # save diff to file
+        echo "${{ steps.diff.outputs.patch }}" > diff.patch
+
+        # send request to external service and save response
+        curl --fail -sS \
+          -X POST "${SERVICE_URL}" \
+          -H "Accept: text/plain" \
+          -H "Content-Type: text/plain" \
+          --data-binary @diff.patch > scan.txt
+
+        # if curl exits with an error (status ≥ 400), the action will fail immediately
+        if grep -q 'Issue' scan.txt; then
+          echo "🚨 Vulnerabilities detected! Failing the scan."
+          cat scan.txt
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
