@@ -30,14 +30,18 @@ jobs:
           DIFF=$(git diff --unified=0 origin/${{ inputs.base_ref }} ${{ inputs.head_ref }})
           if [ -z "$DIFF" ]; then
             echo "No changes → skipping scan."
-            echo "skip<<EOF" >> $GITHUB_OUTPUT
-            echo "true"       >> $GITHUB_OUTPUT
-            echo "EOF"        >> $GITHUB_OUTPUT
+            {
+              echo "skip<<EOF"
+              echo "true"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "patch<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF"     >> $GITHUB_OUTPUT
-          echo "EOF"        >> $GITHUB_OUTPUT
+          {
+            echo "patch<<EOF"
+            echo "$DIFF"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
 
       - name: Send diff to external vulnerability service
@@ -47,16 +51,19 @@ jobs:
           SERVICE_URL: ${{ secrets.CODE_ADVICE_URL }}
         run: |
           echo "${{ steps.diff.outputs.patch }}" > diff.patch
-
+          
           RESPONSE=$(curl -sS \
             -X POST "${SERVICE_URL}" \
             -H "Accept: text/plain" \
             -H "Content-Type: text/plain" \
             --data-binary @diff.patch)
+          
+          {
+            echo "text<<EOF"
+            echo "$RESPONSE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "text<<EOF" >> $GITHUB_OUTPUT
-          echo "$RESPONSE"  >> $GITHUB_OUTPUT
-          echo "EOF"        >> $GITHUB_OUTPUT
 
       - name: Save scan output to file
         if: steps.diff.outputs.skip != 'true'
