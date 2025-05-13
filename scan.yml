@@ -1,0 +1,91 @@
+name: "LLM Vulnerability Scan"
+description: "Composite Action: fetches PR diff → sends to external service → comments and fails on vulnerabilities"
+
+inputs:
+  base_ref:
+    description: "The base branch of the PR (e.g. ${{ github.event.pull_request.base.ref }})"
+    required: true
+  head_ref:
+    description: "The head branch of the PR (e.g. ${{ github.event.pull_request.head.ref }})"
+    required: true
+  code_advice_url:
+    description: "Base URL of your external scanning service (e.g. https://scanner.example.com)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch PR diff
+      id: diff
+      shell: bash
+      run: |
+        git fetch origin "${{ inputs.base_ref }}"
+        DIFF=$(git diff --unified=0 \
+          origin/"${{ inputs.base_ref }}" "${{ inputs.head_ref }}" \
+          -- . ':(exclude).github/workflows/**')
+        if [[ -z "$DIFF" ]]; then
+          echo "skip=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        echo "$DIFF" > diff.patch
+        {
+          echo "patch<<EOF"
+          cat diff.patch
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+
+    - name: Send to external vulnerability service
+      if: steps.diff.outputs.skip != 'true'
+      id: advice
+      shell: bash
+      env:
+        SERVICE_URL: ${{ inputs.code_advice_url }}
+      run: |
+        # Prepare the diff for upload
+        echo "${{ steps.diff.outputs.patch }}" > diff.patch
+
+        # POST to your scan endpoint
+        RESPONSE=$(curl -sS --fail \
+          -X POST "${SERVICE_URL}/api/v1/code-advice" \
+          -H "Accept: text/plain" \
+          -H "Content-Type: text/plain" \
+          --data-binary @diff.patch)
+
+        # Save response
+        echo "$RESPONSE" > scan.txt
+        {
+          echo "text<<EOF"
+          cat scan.txt
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
+
+    - name: Comment results on PR
+      if: steps.diff.outputs.skip != 'true'
+      uses: thollander/actions-comment-pull-request@v1
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        pr_number: ${{ github.event.pull_request.number }}
+        message: |
+          ## 📋 Automatic Vulnerability Scan (LLM)
+          Sent the PR diff to our external service.  
+          **Scan Results:**  
+          ```text
+          ${{ steps.advice.outputs.text }}
+          ```
+
+    - name: Fail build if vulnerabilities found
+      if: steps.diff.outputs.skip != 'true'
+      shell: bash
+      run: |
+        if grep -q 'Issue' scan.txt; then
+          echo "🚨 Vulnerabilities detected! Failing the build."
+          cat scan.txt
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
