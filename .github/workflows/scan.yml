@@ -64,7 +64,7 @@ jobs:
       - name: Save scan output to file
         if: steps.diff.outputs.skip != 'true'
         run: |
-          echo "${{ steps.advice.outputs.text }}" > scan.txt
+          printf "%s\n" "${{ steps.advice.outputs.text }}" > scan.txt
 
       - name: Fail build on detected vulnerabilities
         if: steps.diff.outputs.skip != 'true'
