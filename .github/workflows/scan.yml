@@ -12,6 +12,8 @@ on:
     secrets:
       CODE_ADVICE_URL:
         required: true
+      CODE_ADVICE_TOKEN:
+        required: true
 
 jobs:
   scan:
@@ -45,6 +47,7 @@ jobs:
         id: advice
         env:
           SERVICE_URL: ${{ secrets.CODE_ADVICE_URL }}
+          AUTH_TOKEN: ${{ secrets.CODE_ADVICE_TOKEN }}
         run: |
           echo "${{ steps.diff.outputs.patch }}" > diff.patch
           
@@ -52,6 +55,7 @@ jobs:
             -X POST "${SERVICE_URL}" \
             -H "Accept: text/plain" \
             -H "Content-Type: text/plain" \
+            -H "Authorization: Bearer ${AUTH_TOKEN}" \
             --data-binary @diff.patch)
           
           echo "$RESPONSE" > scan.txt
