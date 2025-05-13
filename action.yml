@@ -12,6 +12,11 @@ inputs:
     description: URL of the external code scanning service
     required: true
 
+outputs:
+  text:
+    description: "Scan result text"
+    value: ${{ steps.advice.outputs.text }}
+
 runs:
   using: "composite"
   steps:
