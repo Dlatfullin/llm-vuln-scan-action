@@ -1,26 +1,33 @@
 name: "LLM Vulnerability Scan"
-description: "Composite Action: fetches PR diff → sends to external service → comments and fails on vulnerabilities"
+description: "Composite Action: fetches PR diff (excluding workflows) → sends to external service → comments & fails on vulnerabilities"
 
 inputs:
   base_ref:
-    description: "Base branch of the PR (e.g. ${{ github.event.pull_request.base.ref }})"
+    description: "The base branch of the PR (e.g. main)"
     required: true
   head_ref:
-    description: "Head branch of the PR (e.g. ${{ github.event.pull_request.head.ref }})"
+    description: "The head branch of the PR (e.g. feature/foo)"
     required: true
   code_advice_url:
-    description: "Base URL of your external scanning service (e.g. https://scanner.example.com)"
+    description: "Base URL of your external scanning service"
+    required: true
+  github_token:
+    description: "GitHub token to post PR comments"
+    required: true
+  pr_number:
+    description: "Pull request number"
     required: true
 
 runs:
   using: "composite"
   steps:
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Fetch PR diff
+    - name: Fetch PR diff (excluding workflows)
       id: diff
       shell: bash
       run: |
@@ -49,11 +56,13 @@ runs:
         SERVICE_URL: ${{ inputs.code_advice_url }}
       run: |
         echo "${{ steps.diff.outputs.patch }}" > diff.patch
+
         RESPONSE=$(curl --fail -sS \
           -X POST "${SERVICE_URL}" \
           -H "Accept: text/plain" \
           -H "Content-Type: text/plain" \
           --data-binary @diff.patch)
+
         echo "$RESPONSE" > scan.txt
         {
           echo "text<<EOF"
@@ -65,11 +74,11 @@ runs:
       if: steps.diff.outputs.skip != 'true'
       uses: thollander/actions-comment-pull-request@v1
       with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        pr_number: ${{ github.event.pull_request.number }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        pr_number:    ${{ inputs.pr_number }}
         message: |
           ## 📋 Automatic Vulnerability Scan (LLM)
-          Sent the PR diff to our external service.  
+          Sent the PR diff (excluding workflows) to our external service.  
           **Scan Results:**  
           ```text
           ${{ steps.advice.outputs.text }}
