@@ -3,10 +3,10 @@ description: "Composite Action: fetches PR diff â†’ sends to external service â†
 
 inputs:
   base_ref:
-    description: "The base branch of the PR (e.g. ${{ github.event.pull_request.base.ref }})"
+    description: "Base branch of the PR (e.g. ${{ github.event.pull_request.base.ref }})"
     required: true
   head_ref:
-    description: "The head branch of the PR (e.g. ${{ github.event.pull_request.head.ref }})"
+    description: "Head branch of the PR (e.g. ${{ github.event.pull_request.head.ref }})"
     required: true
   code_advice_url:
     description: "Base URL of your external scanning service (e.g. https://scanner.example.com)"
@@ -25,9 +25,11 @@ runs:
       shell: bash
       run: |
         git fetch origin "${{ inputs.base_ref }}"
-        DIFF=$(git diff --unified=0 \
-          origin/"${{ inputs.base_ref }}" "${{ inputs.head_ref }}" \
-          -- . ':(exclude).github/workflows/**')
+        DIFF=$(
+          git diff --unified=0 \
+            origin/"${{ inputs.base_ref }}" "${{ inputs.head_ref }}" \
+            -- . ':(exclude).github/workflows/**'
+        )
         if [[ -z "$DIFF" ]]; then
           echo "skip=true" >> $GITHUB_OUTPUT
           exit 0
@@ -39,24 +41,19 @@ runs:
           echo "EOF"
         } >> $GITHUB_OUTPUT
 
-    - name: Send to external vulnerability service
+    - name: Send diff to external vulnerability service
       if: steps.diff.outputs.skip != 'true'
       id: advice
       shell: bash
       env:
         SERVICE_URL: ${{ inputs.code_advice_url }}
       run: |
-        # Prepare the diff for upload
         echo "${{ steps.diff.outputs.patch }}" > diff.patch
-
-        # POST to your scan endpoint
-        RESPONSE=$(curl -sS --fail \
-          -X POST "${SERVICE_URL}/api/v1/code-advice" \
+        RESPONSE=$(curl --fail -sS \
+          -X POST "${SERVICE_URL}" \
           -H "Accept: text/plain" \
           -H "Content-Type: text/plain" \
           --data-binary @diff.patch)
-
-        # Save response
         echo "$RESPONSE" > scan.txt
         {
           echo "text<<EOF"
