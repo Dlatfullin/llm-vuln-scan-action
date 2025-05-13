@@ -69,7 +69,7 @@ jobs:
             ## 📋 Automatic Vulnerability Scan (LLM)
             We’ve sent the diff to our external scanning service.  
             **Scan Results:**  
-            ```text
+            ```markdown
             ${{ steps.advice.outputs.text }}
             ```
 
