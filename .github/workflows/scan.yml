@@ -69,14 +69,14 @@ jobs:
             ## 📋 Automatic Vulnerability Scan (LLM)
             We’ve sent the diff to our external scanning service.  
             **Scan Results:**  
-            ```markdown
+            ```text
             ${{ steps.advice.outputs.text }}
             ```
 
       - name: Save scan output to file
         if: steps.diff.outputs.skip != 'true'
         run: |
-          echo "${{ steps.advice.outputs.text }}" > scan.txt
+          cat "${{ steps.advice.outputs.text }}" > scan.txt
 
       - name: Fail build on detected vulnerabilities
         if: steps.diff.outputs.skip != 'true'
