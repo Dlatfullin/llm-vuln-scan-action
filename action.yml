@@ -20,21 +20,25 @@ runs:
       with:
         fetch-depth: 0
 
-    - name: Fetch base branch and get diff (excluding workflow files)
+    - name: Fetch base and head branches, get diff (excluding workflow files)
       id: diff
       shell: bash
       run: |
         git fetch origin ${{ inputs.base_ref }}
-        DIFF=$(git diff --unified=0 origin/${{ inputs.base_ref }} ${{ inputs.head_ref }} -- . ':(exclude).github/workflows/**')
+        git fetch origin ${{ inputs.head_ref }}
+        
+        DIFF=$(git diff --unified=0 origin/${{ inputs.base_ref }} origin/${{ inputs.head_ref }} -- . ':(exclude).github/workflows/**')
+        
         if [ -z "$DIFF" ]; then
           echo "skip=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-
+        
         echo "$DIFF" > diff.patch
         echo "patch<<EOF" >> "$GITHUB_OUTPUT"
         cat diff.patch >> "$GITHUB_OUTPUT"
         echo "EOF" >> "$GITHUB_OUTPUT"
+
 
     - name: Send diff to external vulnerability service
       if: steps.diff.outputs.skip != 'true'
