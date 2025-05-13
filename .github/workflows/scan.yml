@@ -58,11 +58,11 @@ jobs:
             -H "Content-Type: text/plain" \
             --data-binary @diff.patch)
           
-          {
-            echo "text<<EOF"
-            echo "$RESPONSE"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "$RESPONSE" > scan.txt
+          echo "text<<EOF" >> "$GITHUB_OUTPUT"
+          cat scan.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
 
 
       - name: Save scan output to file
