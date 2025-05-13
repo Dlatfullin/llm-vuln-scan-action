@@ -59,12 +59,24 @@ jobs:
           cat scan.txt >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-
+      - name: Comment results on PR
+        if: steps.diff.outputs.skip != 'true'
+        uses: thollander/actions-comment-pull-request@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pr_number: ${{ github.event.pull_request.number }}
+          message: |
+            ## 📋 Automatic Vulnerability Scan (LLM)
+            We’ve sent the diff to our external scanning service.  
+            **Scan Results:**  
+            ```text
+            ${{ steps.advice.outputs.text }}
+            ```
 
       - name: Save scan output to file
         if: steps.diff.outputs.skip != 'true'
         run: |
-          printf "%s\n" "${{ steps.advice.outputs.text }}" > scan.txt
+          echo "${{ steps.advice.outputs.text }}" > scan.txt
 
       - name: Fail build on detected vulnerabilities
         if: steps.diff.outputs.skip != 'true'
